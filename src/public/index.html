@@ -2,10 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Chat App</title>
+  <title>Real-time Chat</title>
 </head>
 <body>
-  <h2>Chat App</h2>
+  <h2>Real-time Chat App</h2>
+  <input type="text" id="roomInput" placeholder="Nhập phòng" />
+  <button onclick="joinRoom()">Tham gia phòng</button>
+  <br><br>
   <div id="messages"></div>
   <input type="text" id="messageInput" placeholder="Nhập tin nhắn..." />
   <button onclick="sendMessage()">Gửi</button>
@@ -13,22 +16,34 @@
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <script>
     const socket = io('http://localhost:3000');
+    let currentRoom = '';
 
-    socket.on('connect', () => {
-      console.log('Connected to WebSocket server');
+    function joinRoom() {
+      currentRoom = document.getElementById('roomInput').value;
+      socket.emit('joinRoom', currentRoom);
+    }
+
+    socket.on('messageHistory', (messages) => {
+      const messagesDiv = document.getElementById('messages');
+      messagesDiv.innerHTML = '';
+      messages.forEach(msg => {
+        const p = document.createElement('p');
+        p.textContent = `${msg.sender}: ${msg.content}`;
+        messagesDiv.appendChild(p);
+      });
     });
 
     socket.on('message', (message) => {
-      const messages = document.getElementById('messages');
-      const msgElement = document.createElement('p');
-      msgElement.textContent = message;
-      messages.appendChild(msgElement);
+      const messagesDiv = document.getElementById('messages');
+      const p = document.createElement('p');
+      p.textContent = `${message.sender}: ${message.content}`;
+      messagesDiv.appendChild(p);
     });
 
     function sendMessage() {
       const messageInput = document.getElementById('messageInput');
       const message = messageInput.value;
-      socket.emit('message', message);
+      socket.emit('message', { room: currentRoom, sender: 'User', content: message });
       messageInput.value = '';
     }
   </script>

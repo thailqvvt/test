@@ -1,4 +1,5 @@
 import {
+  ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -8,31 +9,43 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { ChatService } from './chat.service';
 
 @WebSocketGateway({ cors: true })
-export class ChatGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
-{
+export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  afterInit(server: Server) {
-    console.log('WebSocket Server Initialized');
+  constructor(private readonly chatService: ChatService) {}
+
+  handleConnection(client: Socket) {
+    console.log(`Client connected: ${client.id}`);
+    client.emit('message', `Welcome to the chat!`);
   }
 
-  handleConnection(client: any, ...args: any[]) {
-    console.log('connect');
-    client.emit('msg', 'welcome ' + client.id);
-  }
-
-  handleDisconnect(client: any) {
+  handleDisconnect(client: Socket) {
     console.log(`Client disconnected: ${client.id}`);
+    this.server.emit('message', `User ${client.id} has left the chat.`);
+  }
+
+  @SubscribeMessage('joinRoom')
+  async handleJoinRoom(
+    @MessageBody() room: string,
+    @ConnectedSocket() client: Socket,
+  ) {
+    client.join(room);
+    console.log(`Client ${client.id} joined room: ${room}`);
+    const messages = await this.chatService.getMessages(room);
+    client.emit('messageHistory', messages);
   }
 
   @SubscribeMessage('message')
-  handleMessage(@MessageBody() message: string): void {
-    console.log('Received message:', message);
-    // Phát lại message tới tất cả client
-    this.server.emit('message', message);
+  async handleMessage(
+    @MessageBody() payload: { room: string; sender: string; content: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { room, sender, content } = payload;
+    const message = await this.chatService.saveMessage(room, sender, content);
+    this.server.to(room).emit('message', message);
   }
 }
