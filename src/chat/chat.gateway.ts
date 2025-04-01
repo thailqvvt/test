@@ -10,22 +10,36 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
+import { UsersService } from '../users/users.service';
 
 @WebSocketGateway({ cors: true })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly userService: UsersService,
+  ) {}
 
-  handleConnection(client: Socket) {
+  async handleConnection(client: Socket) {
     console.log(`Client connected: ${client.id}`);
-    client.emit('message', `Welcome to the chat!`);
+    const username = client.handshake.query.username as string;
+    await this.userService.setUserOnline(username, true);
+    const onlineUsers = this.userService.getOnlineUser();
+    client.emit('online user', onlineUsers);
   }
 
-  handleDisconnect(client: Socket) {
+  async handleDisconnect(client: Socket) {
     console.log(`Client disconnected: ${client.id}`);
-    this.server.emit('message', `User ${client.id} has left the chat.`);
+    const username = client.handshake.query.username as string;
+    await this.userService.setUserOnline(username, false);
+    const users = await this.userService.getOnlineUser();
+
+    this.server.emit(
+      'message',
+      `User ${client.id} has left the chat, online user` + users,
+    );
   }
 
   @SubscribeMessage('joinRoom')

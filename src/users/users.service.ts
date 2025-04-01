@@ -42,4 +42,15 @@ export class UsersService {
     );
     return { message: 'User update', id };
   }
+
+  async setUserOnline(username: string, status: boolean): Promise<User | null> {
+    return this.userModel.findOneAndUpdate(
+      { username },
+      { isOnline: status },
+      { new: true },
+    );
+  }
+  async getOnlineUser(): Promise<User[]> {
+    return this.userModel.find({ isOnline: true }).exec();
+  }
 }
